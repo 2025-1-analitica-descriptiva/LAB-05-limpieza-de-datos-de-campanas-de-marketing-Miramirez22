@@ -6,49 +6,62 @@ Escriba el codigo que ejecute la accion solicitada.
 
 
 def clean_campaign_data():
-    """
-    En esta tarea se le pide que limpie los datos de una campaña de
-    marketing realizada por un banco, la cual tiene como fin la
-    recolección de datos de clientes para ofrecerls un préstamo.
+    import os
+    import zipfile
+    import pandas as pd
+    from glob import glob
 
-    La información recolectada se encuentra en la carpeta
-    files/input/ en varios archivos csv.zip comprimidos para ahorrar
-    espacio en disco.
+    input_dir = os.path.join("files", "input")
+    output_dir = os.path.join("files", "output")
+    os.makedirs(output_dir, exist_ok=True)
 
-    Usted debe procesar directamente los archivos comprimidos (sin
-    descomprimirlos). Se desea partir la data en tres archivos csv
-    (sin comprimir): client.csv, campaign.csv y economics.csv.
-    Cada archivo debe tener las columnas indicadas.
+    dfs = []
 
-    Los tres archivos generados se almacenarán en la carpeta files/output/.
+    for zip_path in glob(os.path.join(input_dir, "*.zip")):
+        with zipfile.ZipFile(zip_path) as z:
+            for csv_name in z.namelist():
+                if csv_name.endswith(".csv"):
+                    with z.open(csv_name) as f:
+                        df = pd.read_csv(f)
+                        dfs.append(df)
 
-    client.csv:
-    - client_id
-    - age
-    - job: se debe cambiar el "." por "" y el "-" por "_"
-    - marital
-    - education: se debe cambiar "." por "_" y "unknown" por pd.NA
-    - credit_default: convertir a "yes" a 1 y cualquier otro valor a 0
-    - mortage: convertir a "yes" a 1 y cualquier otro valor a 0
+    if not dfs:
+        return
+    data = pd.concat(dfs, ignore_index=True)
 
-    campaign.csv:
-    - client_id
-    - number_contacts
-    - contact_duration
-    - previous_campaing_contacts
-    - previous_outcome: cmabiar "success" por 1, y cualquier otro valor a 0
-    - campaign_outcome: cambiar "yes" por 1 y cualquier otro valor a 0
-    - last_contact_day: crear un valor con el formato "YYYY-MM-DD",
-        combinando los campos "day" y "month" con el año 2022.
+    client = pd.DataFrame()
+    client["client_id"] = data["client_id"]
+    client["age"] = data["age"]
+    client["job"] = data["job"].str.replace(".", "", regex=False).str.replace("-", "_", regex=False)
+    client["marital"] = data["marital"]
+    client["education"] = data["education"].str.replace(".", "_", regex=False)
+    client["education"] = client["education"].replace("unknown", pd.NA)
+    client["credit_default"] = (data["credit_default"].str.lower() == "yes").astype(int)
+    client["mortgage"] = (data["mortgage"].str.lower() == "yes").astype(int)
+    client.to_csv(os.path.join(output_dir, "client.csv"), index=False)
 
-    economics.csv:
-    - client_id
-    - const_price_idx
-    - eurobor_three_months
+    campaign = pd.DataFrame()
+    campaign["client_id"] = data["client_id"]
+    campaign["number_contacts"] = data["number_contacts"]
+    campaign["contact_duration"] = data["contact_duration"]
+    campaign["previous_campaign_contacts"] = data["previous_campaign_contacts"]
+    campaign["previous_outcome"] = (data["previous_outcome"].str.lower() == "success").astype(int)
+    campaign["campaign_outcome"] = (data["campaign_outcome"].str.lower() == "yes").astype(int)
 
+    month_map = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
+    }
+    day = data["day"].astype(str).str.zfill(2)
+    month = data["month"].str.lower().map(month_map)
+    campaign["last_contact_date"] = "2022-" + month + "-" + day
+    campaign.to_csv(os.path.join(output_dir, "campaign.csv"), index=False)
 
-
-    """
+    economics = pd.DataFrame()
+    economics["client_id"] = data["client_id"]
+    economics["cons_price_idx"] = data["cons_price_idx"]
+    economics["euribor_three_months"] = data["euribor_three_months"]
+    economics.to_csv(os.path.join(output_dir, "economics.csv"), index=False)
 
     return
 
